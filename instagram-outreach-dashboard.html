@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Outreach Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-0:#0c0c0f;--bg-1:#131318;--bg-2:#1a1a22;--bg-3:#22222d;--bg-4:#2a2a38;
+  --border:rgba(255,255,255,0.07);--border-hover:rgba(255,255,255,0.14);
+  --text-primary:#f0f0f5;--text-secondary:#888899;--text-muted:#4a4a5e;
+  --accent:#a855f7;--accent-glow:rgba(168,85,247,0.18);--accent-soft:rgba(168,85,247,0.12);
+  --pink:#ec4899;--pink-soft:rgba(236,72,153,0.12);
+  --green:#22c55e;--green-soft:rgba(34,197,94,0.12);
+  --amber:#f59e0b;--amber-soft:rgba(245,158,11,0.12);
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;
+  --font:'DM Sans',sans-serif;--font-mono:'DM Mono',monospace;
+  --shadow:0 4px 24px rgba(0,0,0,0.4);--transition:0.18s ease;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg-0);color:var(--text-primary);min-height:100vh;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+/* ── FULL SCREEN LAYERS ── */
+.screen{display:none;min-height:100vh}
+.screen.active{display:flex;align-items:center;justify-content:center;padding:20px}
+#screen-app{display:none;min-height:100vh;align-items:flex-start;justify-content:center}
+#screen-app.active{display:flex}
+
+/* ── LOADING ── */
+#screen-loading{background:var(--bg-0)}
+.loader-wrap{text-align:center}
+.loader-logo{font-size:48px;margin-bottom:20px;animation:float 2s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.loader-spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── AUTH CARD ── */
+.auth-card{background:var(--bg-2);border:1px solid var(--border);border-radius:24px;padding:40px 36px;max-width:440px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,0.6);animation:cardIn 0.4s ease}
+@keyframes cardIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:32px;font-size:18px;font-weight:600;letter-spacing:-0.3px}
+.auth-logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--pink));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.auth-title{font-size:22px;font-weight:700;letter-spacing:-0.5px;margin-bottom:6px}
+.auth-sub{font-size:14px;color:var(--text-secondary);margin-bottom:28px}
+.auth-tabs{display:flex;gap:4px;background:var(--bg-3);border-radius:var(--radius-lg);padding:4px;margin-bottom:24px}
+.auth-tab{flex:1;padding:9px;background:transparent;border:none;border-radius:var(--radius-md);color:var(--text-secondary);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;transition:all var(--transition)}
+.auth-tab:hover{color:var(--text-primary)}
+.auth-tab.active{background:var(--bg-4);color:var(--text-primary);box-shadow:inset 0 0 0 1px var(--border-hover)}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);margin-bottom:7px}
+.form-input{width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font);font-size:14px;padding:11px 14px;outline:none;transition:border-color var(--transition),box-shadow var(--transition)}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.form-input::placeholder{color:var(--text-muted)}
+.auth-error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-md);padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:14px;display:none}
+.auth-error.show{display:block}
+
+/* ── ONBOARDING ── */
+#screen-onboarding{background:var(--bg-0)}
+.onb-card{background:var(--bg-2);border:1px solid var(--border);border-radius:24px;padding:40px 36px;max-width:520px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,0.6);animation:cardIn 0.4s ease}
+.onb-progress{display:flex;gap:6px;margin-bottom:32px}
+.onb-progress-dot{height:3px;flex:1;border-radius:4px;background:var(--bg-4);transition:background 0.35s ease}
+.onb-progress-dot.done{background:linear-gradient(90deg,var(--accent),var(--pink))}
+.onb-progress-dot.active{background:var(--accent)}
+.onb-step{display:none;animation:fadeSlide 0.25s ease}
+.onb-step.active{display:block}
+@keyframes fadeSlide{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+.onb-step-num{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:600;margin-bottom:8px}
+.onb-question{font-size:22px;font-weight:600;letter-spacing:-0.5px;margin-bottom:8px;line-height:1.3}
+.onb-sub{font-size:14px;color:var(--text-secondary);margin-bottom:28px}
+.onb-choices{display:flex;flex-direction:column;gap:8px}
+.onb-choice{background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;cursor:pointer;transition:all var(--transition);display:flex;align-items:center;gap:14px;font-size:14px;font-weight:500}
+.onb-choice:hover{border-color:var(--accent);background:var(--accent-soft)}
+.onb-choice.selected{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.onb-choice .choice-icon{font-size:20px;width:28px;text-align:center;flex-shrink:0}
+.onb-choice .choice-label{flex:1}
+.onb-choice .choice-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border-hover);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:all var(--transition)}
+.onb-choice.selected .choice-check{background:var(--accent);border-color:var(--accent);color:#fff}
+.onb-nav{display:flex;justify-content:flex-end;margin-top:28px;gap:10px}
+
+/* ── SUCCESS ONB ── */
+.onb-success{text-align:center;padding:16px 0 8px}
+.success-icon{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--pink));display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 24px;animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.onb-summary{background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;text-align:left;margin-bottom:24px}
+.onb-summary-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}
+.onb-summary-row:not(:last-child){border-bottom:1px solid var(--border)}
+.onb-summary-row .label{color:var(--text-muted)}
+.onb-summary-row .value{font-weight:500;color:var(--accent)}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:38px;border-radius:var(--radius-md);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all var(--transition);white-space:nowrap;text-decoration:none}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--pink));color:#fff;box-shadow:0 0 20px rgba(168,85,247,0.3)}
+.btn-primary:hover{box-shadow:0 0 28px rgba(168,85,247,0.45);filter:brightness(1.05)}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-ghost{background:var(--bg-3);border:1px solid var(--border);color:var(--text-secondary)}
+.btn-ghost:hover{border-color:var(--border-hover);color:var(--text-primary);background:var(--bg-4)}
+.btn-danger{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#f87171}
+.btn-danger:hover{background:rgba(239,68,68,0.2)}
+.btn-success{background:var(--green-soft);border:1px solid rgba(34,197,94,0.25);color:var(--green)}
+.btn-success:hover{background:rgba(34,197,94,0.2)}
+.btn-accent{background:var(--accent-soft);border:1px solid rgba(168,85,247,0.25);color:var(--accent)}
+.btn-accent:hover{background:rgba(168,85,247,0.2)}
+.btn-full{width:100%;height:50px;font-size:15px;justify-content:center}
+.btn-sm{height:30px;padding:0 10px;font-size:12px;gap:4px}
+.btn-icon{padding:0;width:30px;justify-content:center}
+
+/* ── APP ── */
+.app{max-width:960px;width:100%;padding:0 16px 80px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0 0;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.topbar-logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;letter-spacing:-0.3px}
+.topbar-logo .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--pink));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.topbar-date{font-size:12px;color:var(--text-muted);font-family:var(--font-mono)}
+.user-pill{display:flex;align-items:center;gap:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:40px;padding:5px 12px 5px 6px;font-size:13px;font-weight:500}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--pink));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.logout-btn{background:transparent;border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-muted);font-family:var(--font);font-size:12px;padding:5px 10px;cursor:pointer;transition:all var(--transition);display:flex;align-items:center;gap:5px}
+.logout-btn:hover{border-color:#f87171;color:#f87171;background:rgba(239,68,68,0.08)}
+
+.goal-bar{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.goal-item{display:flex;align-items:center;gap:8px;font-size:12px}
+.goal-label{color:var(--text-muted)}
+.goal-progress-bg{width:80px;height:4px;background:var(--bg-4);border-radius:4px;overflow:hidden}
+.goal-progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--pink));transition:width 0.5s ease}
+.goal-numbers{font-size:11px;font-family:var(--font-mono);color:var(--text-secondary)}
+.goal-numbers span{color:var(--accent);font-weight:600}
+.goal-sep{width:1px;height:24px;background:var(--border)}
+
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+@media(max-width:640px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;position:relative;overflow:hidden;transition:border-color var(--transition),transform var(--transition)}
+.stat-card:hover{border-color:var(--border-hover);transform:translateY(-1px)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.stat-card.s-purple::before{background:linear-gradient(90deg,var(--accent),transparent)}
+.stat-card.s-pink::before{background:linear-gradient(90deg,var(--pink),transparent)}
+.stat-card.s-green::before{background:linear-gradient(90deg,var(--green),transparent)}
+.stat-card.s-amber::before{background:linear-gradient(90deg,var(--amber),transparent)}
+.stat-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
+.stat-value{font-size:28px;font-weight:600;letter-spacing:-1px;line-height:1}
+.stat-card.s-purple .stat-value{color:var(--accent)}
+.stat-card.s-pink .stat-value{color:var(--pink)}
+.stat-card.s-green .stat-value{color:var(--green)}
+.stat-card.s-amber .stat-value{color:var(--amber)}
+.stat-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+.tabs-nav{display:flex;gap:4px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:4px;margin-bottom:20px}
+.tab-btn{flex:1;padding:9px 12px;background:transparent;border:none;border-radius:var(--radius-md);color:var(--text-secondary);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;transition:all var(--transition);display:flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.tab-btn:hover{background:var(--bg-3);color:var(--text-primary)}
+.tab-btn.active{background:var(--bg-4);color:var(--text-primary);box-shadow:inset 0 0 0 1px var(--border-hover)}
+.tab-badge{background:var(--accent-soft);color:var(--accent);font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;min-width:18px;text-align:center}
+.tab-badge.pink{background:var(--pink-soft);color:var(--pink)}
+.tab-badge.green{background:var(--green-soft);color:var(--green)}
+
+.tab-panel{display:none;animation:fadeUp 0.22s ease}
+.tab-panel.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.add-box{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px}
+.add-box-label{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);margin-bottom:10px}
+.add-bar{display:flex;gap:8px}
+.add-bar textarea{flex:1;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font);font-size:13px;padding:10px 14px;resize:none;outline:none;transition:border-color var(--transition),box-shadow var(--transition);min-height:44px;max-height:100px}
+.add-bar textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.add-bar textarea::placeholder{color:var(--text-muted)}
+
+.search-bar{position:relative;margin-bottom:16px}
+.search-bar input{width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font);font-size:13px;padding:10px 14px 10px 38px;outline:none;transition:border-color var(--transition),box-shadow var(--transition)}
+.search-bar input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.search-bar input::placeholder{color:var(--text-muted)}
+.search-bar .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px;pointer-events:none}
+
+.account-list{display:flex;flex-direction:column;gap:6px}
+.account-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;display:flex;align-items:center;gap:12px;transition:all var(--transition);animation:cardIn2 0.2s ease}
+@keyframes cardIn2{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.account-card:hover{border-color:var(--border-hover);background:var(--bg-3)}
+.account-avatar{width:38px;height:38px;flex-shrink:0;border-radius:50%;background:linear-gradient(135deg,var(--accent-soft),var(--pink-soft));border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:var(--accent);text-transform:uppercase}
+.account-info{flex:1;min-width:0}
+.account-pseudo{font-size:14px;font-weight:500;display:flex;align-items:center;gap:6px}
+.account-pseudo a{color:var(--text-primary);text-decoration:none;transition:color var(--transition)}
+.account-pseudo a:hover{color:var(--accent)}
+.ext-icon{color:var(--text-muted);font-size:11px}
+.account-meta{font-size:11px;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)}
+.account-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);font-weight:500}
+.section-count{font-size:12px;color:var(--text-muted);font-family:var(--font-mono)}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.empty-state i{font-size:36px;margin-bottom:12px;display:block}
+.empty-state p{font-size:14px}
+
+.msg-form{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:20px}
+.msg-form label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);margin-bottom:8px}
+.msg-form textarea{width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font);font-size:13px;padding:12px 14px;resize:vertical;min-height:100px;outline:none;transition:border-color var(--transition),box-shadow var(--transition)}
+.msg-form textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.msg-form textarea::placeholder{color:var(--text-muted)}
+.msg-form-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}
+.char-count{font-size:11px;color:var(--text-muted);font-family:var(--font-mono)}
+.msg-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:8px;transition:all var(--transition);animation:cardIn2 0.2s ease}
+.msg-card:hover{border-color:var(--border-hover)}
+.msg-content{font-size:13px;color:var(--text-primary);white-space:pre-wrap;line-height:1.7;margin-bottom:12px}
+.msg-content.editing{display:none}
+.msg-edit-area{display:none;width:100%;background:var(--bg-3);border:1px solid var(--accent);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font);font-size:13px;padding:12px 14px;resize:vertical;min-height:80px;outline:none;margin-bottom:10px;box-shadow:0 0 0 3px var(--accent-glow)}
+.msg-edit-area.visible{display:block}
+.msg-footer{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.msg-date{font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-left:auto}
+
+#toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--bg-3);border:1px solid var(--border-hover);border-radius:var(--radius-lg);padding:12px 16px;font-size:13px;color:var(--text-primary);box-shadow:var(--shadow);animation:toastIn 0.25s ease,toastOut 0.3s ease 2.7s forwards;display:flex;align-items:center;gap:10px;max-width:320px;pointer-events:all}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(20px)}}
+.toast.success i{color:var(--green)}
+.toast.error i{color:#f87171}
+.toast.info i{color:var(--accent)}
+.toast.warning i{color:var(--amber)}
+
+@media(max-width:600px){
+  .auth-card,.onb-card{padding:28px 20px}
+  .tabs-nav{gap:2px}
+  .tab-btn{padding:9px 6px;font-size:11px}
+  .account-card{flex-wrap:wrap}
+  .account-actions{width:100%;justify-content:flex-end}
+  .topbar{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<!-- ── LOADING ── -->
+<div class="screen active" id="screen-loading">
+  <div class="loader-wrap">
+    <div class="loader-logo">📲</div>
+    <div class="loader-spinner"></div>
+  </div>
+</div>
+
+<!-- ── AUTH ── -->
+<div class="screen" id="screen-auth">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">📲</div>
+      Outreach Dashboard
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Connexion</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup')">Créer un compte</button>
+    </div>
+
+    <!-- Login -->
+    <div id="form-login">
+      <div class="auth-title">Bon retour 👋</div>
+      <div class="auth-sub">Connecte-toi à ton espace agence.</div>
+      <div class="auth-error" id="login-error"></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input class="form-input" id="login-email" type="email" placeholder="toi@agence.com" autocomplete="email" />
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input class="form-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="btn btn-primary btn-full" id="login-btn" onclick="doLogin()" style="margin-top:8px">
+        <i class="fa-solid fa-right-to-bracket"></i> Se connecter
+      </button>
+    </div>
+
+    <!-- Signup -->
+    <div id="form-signup" style="display:none">
+      <div class="auth-title">Créer ton compte</div>
+      <div class="auth-sub">Tu seras guidé par un petit quiz ensuite.</div>
+      <div class="auth-error" id="signup-error"></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input class="form-input" id="signup-email" type="email" placeholder="toi@agence.com" autocomplete="email" />
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input class="form-input" id="signup-password" type="password" placeholder="Min. 6 caractères" autocomplete="new-password" />
+      </div>
+      <button class="btn btn-primary btn-full" id="signup-btn" onclick="doSignup()" style="margin-top:8px">
+        <i class="fa-solid fa-user-plus"></i> Créer mon compte
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ONBOARDING QUIZ ── -->
+<div class="screen" id="screen-onboarding">
+  <div class="onb-card">
+
+    <div class="onb-step active" id="ostep-1">
+      <div class="onb-progress" id="onb-prog-1"></div>
+      <div class="onb-step-num">Étape 1 sur 4</div>
+      <div class="onb-question">Comment s'appelle ton agence ?</div>
+      <div class="onb-sub">Ce nom apparaîtra dans ton dashboard.</div>
+      <input class="form-input" id="q-agency" type="text" placeholder="ex : Nova OFM, Prestige Agency…" maxlength="40" autocomplete="off" />
+      <div style="font-size:12px;color:var(--text-muted);margin-top:8px"><i class="fa-solid fa-circle-info" style="margin-right:4px"></i>Entre 2 et 40 caractères</div>
+      <div class="onb-nav">
+        <button class="btn btn-primary" onclick="onbNext(1)">Continuer <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <div class="onb-step" id="ostep-2">
+      <div class="onb-progress" id="onb-prog-2"></div>
+      <div class="onb-step-num">Étape 2 sur 4</div>
+      <div class="onb-question">Objectif de DM par jour ?</div>
+      <div class="onb-sub">On affichera ta progression quotidienne en temps réel.</div>
+      <div class="onb-choices" id="q-dms">
+        <div class="onb-choice" onclick="pick('q-dms',this,'10')"><span class="choice-icon">🎯</span><span class="choice-label">10 DM / jour — je débute</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-dms',this,'25')"><span class="choice-icon">🔥</span><span class="choice-label">25 DM / jour — régulier</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-dms',this,'50')"><span class="choice-icon">⚡</span><span class="choice-label">50 DM / jour — intensif</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-dms',this,'100')"><span class="choice-icon">🚀</span><span class="choice-label">100+ DM / jour — full scale</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+      </div>
+      <div class="onb-nav">
+        <button class="btn btn-ghost" onclick="onbBack(2)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
+        <button class="btn btn-primary" onclick="onbNext(2)">Continuer <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <div class="onb-step" id="ostep-3">
+      <div class="onb-progress" id="onb-prog-3"></div>
+      <div class="onb-step-num">Étape 3 sur 4</div>
+      <div class="onb-question">Ta niche principale ?</div>
+      <div class="onb-sub">Pour personnaliser tes templates.</div>
+      <div class="onb-choices" id="q-niche">
+        <div class="onb-choice" onclick="pick('q-niche',this,'Fitness & Sport')"><span class="choice-icon">💪</span><span class="choice-label">Fitness & Sport</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-niche',this,'Lifestyle & Mode')"><span class="choice-icon">👗</span><span class="choice-label">Lifestyle & Mode</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-niche',this,'Beauté & Bien-être')"><span class="choice-icon">✨</span><span class="choice-label">Beauté & Bien-être</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-niche',this,'Multi-niches')"><span class="choice-icon">🌐</span><span class="choice-label">Multi-niches</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+      </div>
+      <div class="onb-nav">
+        <button class="btn btn-ghost" onclick="onbBack(3)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
+        <button class="btn btn-primary" onclick="onbNext(3)">Continuer <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <div class="onb-step" id="ostep-4">
+      <div class="onb-progress" id="onb-prog-4"></div>
+      <div class="onb-step-num">Étape 4 sur 4</div>
+      <div class="onb-question">Tu travailles comment ?</div>
+      <div class="onb-sub">Pour calibrer l'outil à ta situation.</div>
+      <div class="onb-choices" id="q-team">
+        <div class="onb-choice" onclick="pick('q-team',this,'Solo')"><span class="choice-icon">🧑</span><span class="choice-label">Solo — je gère tout moi-même</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-team',this,'Duo')"><span class="choice-icon">👥</span><span class="choice-label">Duo — avec un associé</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+        <div class="onb-choice" onclick="pick('q-team',this,'Petite équipe')"><span class="choice-icon">🏢</span><span class="choice-label">Petite équipe (3-5 personnes)</span><span class="choice-check"><i class="fa-solid fa-check"></i></span></div>
+      </div>
+      <div class="onb-nav">
+        <button class="btn btn-ghost" onclick="onbBack(4)"><i class="fa-solid fa-arrow-left"></i> Retour</button>
+        <button class="btn btn-primary" id="onb-finish-btn" onclick="finishOnboarding()">Terminer <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <div class="onb-step" id="ostep-5">
+      <div class="onb-success">
+        <div class="success-icon">✅</div>
+        <h2 style="font-size:24px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px">Ton espace est prêt !</h2>
+        <p style="color:var(--text-secondary);margin-bottom:24px">Voici le résumé de ton profil</p>
+        <div class="onb-summary" id="onb-summary"></div>
+        <button class="btn btn-primary" style="width:100%;height:50px;font-size:15px;justify-content:center" onclick="goToDashboard()">
+          Accéder à mon dashboard <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div class="screen" id="screen-app">
+<div class="app">
+
+  <div class="topbar">
+    <div class="topbar-logo">
+      <div class="logo-icon">📲</div>
+      <span id="app-name">Outreach</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-date" id="today-date"></div>
+      <div class="user-pill">
+        <div class="user-avatar" id="user-initials">?</div>
+        <span id="user-niche" style="font-size:12px;color:var(--text-secondary)">—</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Déconnexion
+      </button>
+    </div>
+  </div>
+
+  <div class="goal-bar">
+    <div class="goal-item">
+      <span class="goal-label"><i class="fa-solid fa-paper-plane" style="margin-right:4px;color:var(--accent)"></i>DM du jour</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="goal-progress-bg"><div class="goal-progress-fill" id="goal-fill" style="width:0%"></div></div>
+        <span class="goal-numbers"><span id="goal-cur">0</span> / <span id="goal-max">—</span></span>
+      </div>
+    </div>
+    <div class="goal-sep"></div>
+    <div class="goal-item">
+      <span class="goal-label"><i class="fa-solid fa-bullseye" style="margin-right:4px;color:var(--pink)"></i>Objectif</span>
+      <span style="font-size:13px;font-weight:600;color:var(--pink)" id="goal-label">—</span>
+    </div>
+    <div class="goal-sep"></div>
+    <div class="goal-item">
+      <span class="goal-label"><i class="fa-solid fa-users" style="margin-right:4px;color:var(--green)"></i>Équipe</span>
+      <span style="font-size:13px;font-weight:600;color:var(--green)" id="team-label">—</span>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card s-purple"><div class="stat-label">Ajoutés aujourd'hui</div><div class="stat-value" id="st-add">0</div><div class="stat-sub">comptes</div></div>
+    <div class="stat-card s-pink"><div class="stat-label">DM envoyés aujourd'hui</div><div class="stat-value" id="st-dm">0</div><div class="stat-sub">messages</div></div>
+    <div class="stat-card s-green"><div class="stat-label">Total réponses</div><div class="stat-value" id="st-rep">0</div><div class="stat-sub">reçues</div></div>
+    <div class="stat-card s-amber"><div class="stat-label">Taux de réponse</div><div class="stat-value" id="st-rate">0%</div><div class="stat-sub">global</div></div>
+  </div>
+
+  <div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('added')"><i class="fa-solid fa-user-plus"></i> Ajoutés <span class="tab-badge" id="b-added">0</span></button>
+    <button class="tab-btn" onclick="switchTab('dm')"><i class="fa-solid fa-paper-plane"></i> DM Envoyés <span class="tab-badge pink" id="b-dm">0</span></button>
+    <button class="tab-btn" onclick="switchTab('replies')"><i class="fa-solid fa-reply"></i> Réponses <span class="tab-badge green" id="b-rep">0</span></button>
+    <button class="tab-btn" onclick="switchTab('messages')"><i class="fa-solid fa-message"></i> Messages</button>
+  </div>
+
+  <div class="tab-panel active" id="panel-added">
+    <div class="add-box">
+      <div class="add-box-label"><i class="fa-solid fa-plus" style="margin-right:6px"></i>Ajouter des comptes</div>
+      <div class="add-bar">
+        <textarea id="input-add" placeholder="Liens Instagram ou pseudos — séparés par virgules ou retours à la ligne" rows="2" oninput="autoResize(this)"></textarea>
+        <button class="btn btn-primary" onclick="addAccounts()"><i class="fa-solid fa-plus"></i> Ajouter</button>
+      </div>
+    </div>
+    <div class="section-header">
+      <span class="section-title">Comptes ajoutés</span>
+      <span class="section-count" id="c-added">0 compte(s)</span>
+    </div>
+    <div class="account-list" id="list-added"></div>
+  </div>
+
+  <div class="tab-panel" id="panel-dm">
+    <div class="search-bar"><i class="fa-solid fa-magnifying-glass si"></i><input type="text" id="search-dm" placeholder="Rechercher un pseudo…" oninput="renderDm()" /></div>
+    <div class="section-header"><span class="section-title">DM envoyés</span><span class="section-count" id="c-dm">0 compte(s)</span></div>
+    <div class="account-list" id="list-dm"></div>
+  </div>
+
+  <div class="tab-panel" id="panel-replies">
+    <div class="search-bar"><i class="fa-solid fa-magnifying-glass si"></i><input type="text" id="search-replies" placeholder="Rechercher un pseudo…" oninput="renderReplies()" /></div>
+    <div class="section-header"><span class="section-title">Comptes ayant répondu</span><span class="section-count" id="c-rep">0 compte(s)</span></div>
+    <div class="account-list" id="list-replies"></div>
+  </div>
+
+  <div class="tab-panel" id="panel-messages">
+    <div class="msg-form">
+      <label><i class="fa-solid fa-pen-to-square" style="margin-right:6px"></i>Nouveau template DM</label>
+      <textarea id="msg-input" placeholder="Rédige ton message… Tu peux utiliser {{pseudo}}, {{niche}}, etc." oninput="updateCharCount()"></textarea>
+      <div class="msg-form-footer">
+        <span class="char-count" id="char-count">0 caractère(s)</span>
+        <button class="btn btn-primary" onclick="addMessage()"><i class="fa-solid fa-plus"></i> Enregistrer</button>
+      </div>
+    </div>
+    <div class="section-header"><span class="section-title">Bibliothèque de templates</span><span class="section-count" id="c-msg">0 template(s)</span></div>
+    <div id="list-messages"></div>
+  </div>
+
+</div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+/* ══════════════════════════════════════
+   SUPABASE INIT
+══════════════════════════════════════ */
+const SUPA_URL = 'https://lkvwgdxrkwsvcjcarxhi.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrdndnZHhya3dzdmNqY2FyeGhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDU1MDgsImV4cCI6MjA5NTgyMTUwOH0.-vpCn4YL8ecTbBZ5Jwohqzrs6Su14U-DxZ4lzW4OxIY';
+const { createClient } = supabase;
+const sb = createClient(SUPA_URL, SUPA_KEY);
+
+/* ══════════════════════════════════════
+   SCREEN MANAGER
+══════════════════════════════════════ */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+/* ══════════════════════════════════════
+   TOAST
+══════════════════════════════════════ */
+function toast(msg, type='info') {
+  const icons = {success:'fa-circle-check',error:'fa-circle-xmark',info:'fa-circle-info',warning:'fa-triangle-exclamation'};
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<i class="fa-solid ${icons[type]}"></i> ${msg}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3100);
+}
+
+/* ══════════════════════════════════════
+   AUTH
+══════════════════════════════════════ */
+let currentUser = null;
+let userProfile = null;
+
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('form-login').style.display  = tab === 'login'  ? '' : 'none';
+  document.getElementById('form-signup').style.display = tab === 'signup' ? '' : 'none';
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('login-btn');
+  errEl.classList.remove('show');
+  if (!email || !pass) { errEl.textContent = 'Remplis tous les champs.'; errEl.classList.add('show'); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connexion…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    errEl.textContent = 'Email ou mot de passe incorrect.';
+    errEl.classList.add('show');
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Se connecter';
+  }
+  // onAuthStateChange handles the rest
+}
+
+async function doSignup() {
+  const email = document.getElementById('signup-email').value.trim();
+  const pass  = document.getElementById('signup-password').value;
+  const errEl = document.getElementById('signup-error');
+  const btn   = document.getElementById('signup-btn');
+  errEl.classList.remove('show');
+  if (!email || !pass) { errEl.textContent = 'Remplis tous les champs.'; errEl.classList.add('show'); return; }
+  if (pass.length < 6)  { errEl.textContent = 'Mot de passe min. 6 caractères.'; errEl.classList.add('show'); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Création…';
+  const { data, error } = await sb.auth.signUp({ email, password: pass });
+  if (error) {
+    errEl.textContent = error.message.includes('already') ? 'Cet email est déjà utilisé.' : error.message;
+    errEl.classList.add('show');
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Créer mon compte';
+    return;
+  }
+  // User created — go to onboarding
+  currentUser = data.user;
+  startOnboarding();
+}
+
+async function doLogout() {
+  if (!confirm('Te déconnecter ?')) return;
+  await sb.auth.signOut();
+  currentUser = null; userProfile = null;
+  show('screen-auth');
+}
+
+/* ══════════════════════════════════════
+   ONBOARDING
+══════════════════════════════════════ */
+const onbAnswers = { agency:'', dms:'', niche:'', team:'' };
+
+function startOnboarding() {
+  showOStep(1);
+  show('screen-onboarding');
+}
+
+function showOStep(n) {
+  document.querySelectorAll('.onb-step').forEach(s => s.classList.remove('active'));
+  document.getElementById(`ostep-${n}`).classList.add('active');
+  // Progress bars
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`onb-prog-${i}`);
+    if (!el) continue;
+    el.innerHTML = [1,2,3,4].map(idx => {
+      const cls = idx < n ? 'done' : idx === n ? 'active' : '';
+      return `<div class="onb-progress-dot ${cls}"></div>`;
+    }).join('');
+  }
+  if (n === 1) setTimeout(() => document.getElementById('q-agency').focus(), 100);
+}
+
+function pick(groupId, el, val) {
+  document.querySelectorAll(`#${groupId} .onb-choice`).forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (groupId === 'q-dms')   onbAnswers.dms   = val;
+  if (groupId === 'q-niche') onbAnswers.niche = val;
+  if (groupId === 'q-team')  onbAnswers.team  = val;
+}
+
+function onbNext(step) {
+  if (step === 1) {
+    const v = document.getElementById('q-agency').value.trim();
+    if (v.length < 2) { toast('Entre le nom de ton agence (min. 2 caractères).','warning'); return; }
+    onbAnswers.agency = v;
+  }
+  if (step === 2 && !onbAnswers.dms)   { toast('Sélectionne un objectif.','warning'); return; }
+  if (step === 3 && !onbAnswers.niche) { toast('Sélectionne ta niche.','warning'); return; }
+  showOStep(step + 1);
+}
+
+function onbBack(step) { showOStep(step - 1); }
+
+async function finishOnboarding() {
+  if (!onbAnswers.team) { toast('Sélectionne ta configuration.','warning'); return; }
+  const btn = document.getElementById('onb-finish-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+  const { error } = await sb.from('profiles').insert({
+    id:       currentUser.id,
+    agency:   onbAnswers.agency,
+    dm_goal:  parseInt(onbAnswers.dms),
+    niche:    onbAnswers.niche,
+    team:     onbAnswers.team,
+  });
+
+  if (error) {
+    toast('Erreur lors de la sauvegarde : ' + error.message, 'error');
+    btn.disabled = false; btn.innerHTML = 'Terminer <i class="fa-solid fa-arrow-right"></i>';
+    return;
+  }
+
+  document.getElementById('onb-summary').innerHTML = `
+    <div class="onb-summary-row"><span class="label">Agence</span><span class="value">${onbAnswers.agency}</span></div>
+    <div class="onb-summary-row"><span class="label">Objectif DM / jour</span><span class="value">${onbAnswers.dms} DM</span></div>
+    <div class="onb-summary-row"><span class="label">Niche</span><span class="value">${onbAnswers.niche}</span></div>
+    <div class="onb-summary-row"><span class="label">Configuration</span><span class="value">${onbAnswers.team}</span></div>
+  `;
+  showOStep(5);
+}
+
+async function goToDashboard() {
+  await loadProfile();
+  initApp();
+}
+
+/* ══════════════════════════════════════
+   PROFILE
+══════════════════════════════════════ */
+async function loadProfile() {
+  const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  userProfile = data;
+}
+
+/* ══════════════════════════════════════
+   APP INIT
+══════════════════════════════════════ */
+let accounts = [];  // all user's accounts from DB
+let messages = [];  // all user's messages from DB
+
+async function initApp() {
+  show('screen-app');
+  // Topbar
+  document.getElementById('app-name').textContent = userProfile.agency;
+  document.getElementById('user-initials').textContent = userProfile.agency.slice(0,2).toUpperCase();
+  document.getElementById('user-niche').textContent = userProfile.niche || '—';
+  document.getElementById('goal-label').textContent = `${userProfile.dm_goal} DM / jour`;
+  document.getElementById('goal-max').textContent   = userProfile.dm_goal;
+  document.getElementById('team-label').textContent = userProfile.team || '—';
+  document.getElementById('today-date').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('input-add').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addAccounts(); }
+  });
+  await refreshData();
+}
+
+async function refreshData() {
+  const [accRes, msgRes] = await Promise.all([
+    sb.from('accounts').select('*').eq('user_id', currentUser.id).order('added_at', {ascending:false}),
+    sb.from('messages').select('*').eq('user_id', currentUser.id).order('created_at', {ascending:false}),
+  ]);
+  accounts = accRes.data || [];
+  messages = msgRes.data || [];
+  renderAll();
+}
+
+/* ══════════════════════════════════════
+   TABS
+══════════════════════════════════════ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const idx = ['added','dm','replies','messages'].indexOf(name);
+  document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+}
+
+/* ══════════════════════════════════════
+   HELPERS
+══════════════════════════════════════ */
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function fmt(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function extractPseudo(raw) {
+  raw = raw.trim().replace(/\/$/,'');
+  if (raw.startsWith('@')) raw = raw.slice(1);
+  const m = raw.match(/(?:instagram\.com|instagr\.am)\/([^/?#\s]+)/i);
+  if (m) return m[1].toLowerCase();
+  if (/^[\w.]+$/.test(raw)) return raw.toLowerCase();
+  return null;
+}
+function igUrl(p) { return `https://www.instagram.com/${p}/`; }
+function av(p) { return p ? p[0].toUpperCase() : '?'; }
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
+
+/* ══════════════════════════════════════
+   STATS & RENDER
+══════════════════════════════════════ */
+function renderAll() {
+  const today = todayStr();
+  const added   = accounts.filter(a => a.status === 'added');
+  const dm      = accounts.filter(a => a.status === 'dm');
+  const replies = accounts.filter(a => a.status === 'replied');
+  const addedToday = accounts.filter(a => a.added_at && a.added_at.startsWith(today)).length;
+  const dmToday    = accounts.filter(a => a.dm_at   && a.dm_at.startsWith(today)).length;
+  const totalDm    = dm.length + replies.length;
+  const rate       = totalDm > 0 ? Math.round((replies.length / totalDm) * 100) : 0;
+  const goal       = userProfile?.dm_goal || 1;
+  const pct        = Math.min(100, Math.round((dmToday / goal) * 100));
+
+  document.getElementById('st-add').textContent  = addedToday;
+  document.getElementById('st-dm').textContent   = dmToday;
+  document.getElementById('st-rep').textContent  = replies.length;
+  document.getElementById('st-rate').textContent = rate + '%';
+  document.getElementById('b-added').textContent = added.length;
+  document.getElementById('b-dm').textContent    = dm.length;
+  document.getElementById('b-rep').textContent   = replies.length;
+  document.getElementById('goal-cur').textContent = dmToday;
+  document.getElementById('goal-fill').style.width = pct + '%';
+
+  renderAdded(added);
+  renderDm(dm);
+  renderReplies(replies);
+  renderMessages();
+}
+
+function renderAdded(data) {
+  const list = document.getElementById('list-added');
+  document.getElementById('c-added').textContent = `${data.length} compte(s)`;
+  if (!data.length) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-user-slash"></i><p>Aucun compte ajouté.<br>Colle des liens ou pseudos ci-dessus.</p></div>`; return; }
+  list.innerHTML = data.map(a => `
+    <div class="account-card">
+      <div class="account-avatar">${av(a.pseudo)}</div>
+      <div class="account-info">
+        <div class="account-pseudo"><a href="${igUrl(a.pseudo)}" target="_blank" rel="noopener">@${a.pseudo}</a><i class="fa-solid fa-arrow-up-right-from-square ext-icon"></i></div>
+        <div class="account-meta">Ajouté le ${fmt(a.added_at)}</div>
+      </div>
+      <div class="account-actions">
+        <button class="btn btn-ghost btn-sm" onclick="markDm('${a.id}')"><i class="fa-solid fa-paper-plane"></i> DM envoyé</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="removeAccount('${a.id}')" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+function renderDm() {
+  const query = (document.getElementById('search-dm').value || '').toLowerCase();
+  const dm = accounts.filter(a => a.status === 'dm');
+  const data = dm.filter(a => !query || a.pseudo.includes(query));
+  const list = document.getElementById('list-dm');
+  document.getElementById('c-dm').textContent = `${dm.length} compte(s)`;
+  if (!dm.length) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-paper-plane"></i><p>Aucun DM enregistré.</p></div>`; return; }
+  if (!data.length) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-magnifying-glass"></i><p>Aucun résultat.</p></div>`; return; }
+  list.innerHTML = data.map(a => `
+    <div class="account-card">
+      <div class="account-avatar" style="background:linear-gradient(135deg,var(--pink-soft),var(--accent-soft));color:var(--pink)">${av(a.pseudo)}</div>
+      <div class="account-info">
+        <div class="account-pseudo"><a href="${igUrl(a.pseudo)}" target="_blank" rel="noopener">@${a.pseudo}</a><i class="fa-solid fa-arrow-up-right-from-square ext-icon"></i></div>
+        <div class="account-meta">DM le ${fmt(a.dm_at)}</div>
+      </div>
+      <div class="account-actions">
+        <button class="btn btn-success btn-sm" onclick="markReply('${a.id}')"><i class="fa-solid fa-reply"></i> A répondu</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="removeAccount('${a.id}')" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+function renderReplies() {
+  const query = (document.getElementById('search-replies').value || '').toLowerCase();
+  const replies = accounts.filter(a => a.status === 'replied');
+  const data = replies.filter(a => !query || a.pseudo.includes(query));
+  const list = document.getElementById('list-replies');
+  document.getElementById('c-rep').textContent = `${replies.length} compte(s)`;
+  if (!replies.length) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-inbox"></i><p>Aucune réponse enregistrée.</p></div>`; return; }
+  if (!data.length) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-magnifying-glass"></i><p>Aucun résultat.</p></div>`; return; }
+  list.innerHTML = data.map(a => `
+    <div class="account-card">
+      <div class="account-avatar" style="background:var(--green-soft);color:var(--green)">${av(a.pseudo)}</div>
+      <div class="account-info">
+        <div class="account-pseudo">
+          <a href="${igUrl(a.pseudo)}" target="_blank" rel="noopener">@${a.pseudo}</a>
+          <i class="fa-solid fa-arrow-up-right-from-square ext-icon"></i>
+          <span style="background:var(--green-soft);color:var(--green);font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600">✓ A répondu</span>
+        </div>
+        <div class="account-meta">Réponse le ${fmt(a.reply_at)}</div>
+      </div>
+      <div class="account-actions">
+        <button class="btn btn-danger btn-sm btn-icon" onclick="removeAccount('${a.id}')" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+function renderMessages() {
+  const list = document.getElementById('list-messages');
+  document.getElementById('c-msg').textContent = `${messages.length} template(s)`;
+  if (!messages.length) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-message"></i><p>Aucun template enregistré.</p></div>`; return; }
+  list.innerHTML = messages.map(m => `
+    <div class="msg-card" id="msg-${m.id}">
+      <div class="msg-content" id="mc-${m.id}">${esc(m.text)}</div>
+      <textarea class="msg-edit-area" id="me-${m.id}">${esc(m.text)}</textarea>
+      <div class="msg-footer">
+        <button class="btn btn-accent btn-sm" onclick="copyMsg('${m.id}')"><i class="fa-solid fa-copy"></i> Copier</button>
+        <button class="btn btn-ghost btn-sm" id="eb-${m.id}" onclick="toggleEdit('${m.id}')"><i class="fa-solid fa-pen"></i> Modifier</button>
+        <button class="btn btn-success btn-sm" id="sb-${m.id}" style="display:none" onclick="saveEdit('${m.id}')"><i class="fa-solid fa-check"></i> Sauvegarder</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteMsg('${m.id}')"><i class="fa-solid fa-trash"></i></button>
+        <span class="msg-date">${fmt(m.created_at)}</span>
+      </div>
+    </div>`).join('');
+}
+
+/* ══════════════════════════════════════
+   ACTIONS — ACCOUNTS
+══════════════════════════════════════ */
+async function addAccounts() {
+  const raw = document.getElementById('input-add').value;
+  if (!raw.trim()) { toast('Colle au moins un lien ou pseudo.','warning'); return; }
+  const parts = raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+  let added=0, dupes=0, invalid=0;
+  const rows = [];
+  parts.forEach(part => {
+    const pseudo = extractPseudo(part);
+    if (!pseudo) { invalid++; return; }
+    if (accounts.find(a => a.pseudo === pseudo)) { dupes++; return; }
+    rows.push({ id:`a_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, user_id:currentUser.id, pseudo, status:'added', added_at:new Date().toISOString() });
+    added++;
+  });
+  if (rows.length) {
+    const { error } = await sb.from('accounts').insert(rows);
+    if (error) { toast('Erreur : ' + error.message,'error'); return; }
+  }
+  document.getElementById('input-add').value = '';
+  if (added>0)   toast(`${added} compte(s) ajouté(s) ✓`,'success');
+  if (dupes>0)   toast(`${dupes} doublon(s) ignoré(s)`,'warning');
+  if (invalid>0) toast(`${invalid} entrée(s) invalide(s)`,'error');
+  await refreshData();
+}
+
+async function markDm(id) {
+  const { error } = await sb.from('accounts').update({ status:'dm', dm_at:new Date().toISOString() }).eq('id',id);
+  if (error) { toast('Erreur : '+error.message,'error'); return; }
+  const a = accounts.find(x=>x.id===id);
+  toast(`@${a?.pseudo} — DM enregistré ✓`,'success');
+  await refreshData();
+}
+
+async function markReply(id) {
+  const { error } = await sb.from('accounts').update({ status:'replied', reply_at:new Date().toISOString() }).eq('id',id);
+  if (error) { toast('Erreur : '+error.message,'error'); return; }
+  const a = accounts.find(x=>x.id===id);
+  toast(`@${a?.pseudo} — Réponse enregistrée ✓`,'success');
+  await refreshData();
+}
+
+async function removeAccount(id) {
+  if (!confirm('Supprimer ce compte ?')) return;
+  await sb.from('accounts').delete().eq('id',id);
+  toast('Compte supprimé','info');
+  await refreshData();
+}
+
+/* ══════════════════════════════════════
+   ACTIONS — MESSAGES
+══════════════════════════════════════ */
+async function addMessage() {
+  const text = document.getElementById('msg-input').value.trim();
+  if (!text) { toast('Le message ne peut pas être vide.','warning'); return; }
+  const { error } = await sb.from('messages').insert({ id:`m_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, user_id:currentUser.id, text, created_at:new Date().toISOString() });
+  if (error) { toast('Erreur : '+error.message,'error'); return; }
+  document.getElementById('msg-input').value = '';
+  document.getElementById('char-count').textContent = '0 caractère(s)';
+  toast('Template enregistré ✓','success');
+  await refreshData();
+}
+
+function copyMsg(id) {
+  const m = messages.find(x=>x.id===id); if(!m) return;
+  navigator.clipboard.writeText(m.text)
+    .then(()=>toast('Copié ✓','success'))
+    .catch(()=>{ const t=document.createElement('textarea'); t.value=m.text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); toast('Copié ✓','success'); });
+}
+
+function toggleEdit(id) {
+  const c=document.getElementById(`mc-${id}`), e=document.getElementById(`me-${id}`);
+  const eb=document.getElementById(`eb-${id}`), sb2=document.getElementById(`sb-${id}`);
+  const on = e.classList.contains('visible');
+  if(on){ e.classList.remove('visible'); c.classList.remove('editing'); eb.style.display=''; sb2.style.display='none'; }
+  else  { e.classList.add('visible');    c.classList.add('editing');    eb.style.display='none'; sb2.style.display=''; e.focus(); }
+}
+
+async function saveEdit(id) {
+  const text = document.getElementById(`me-${id}`).value.trim();
+  if (!text) { toast('Le message ne peut pas être vide.','warning'); return; }
+  const { error } = await sb.from('messages').update({ text }).eq('id',id);
+  if (error) { toast('Erreur : '+error.message,'error'); return; }
+  toast('Template mis à jour ✓','success');
+  await refreshData();
+}
+
+async function deleteMsg(id) {
+  if (!confirm('Supprimer ce template ?')) return;
+  await sb.from('messages').delete().eq('id',id);
+  toast('Template supprimé','info');
+  await refreshData();
+}
+
+function updateCharCount() {
+  document.getElementById('char-count').textContent = `${document.getElementById('msg-input').value.length} caractère(s)`;
+}
+
+/* ══════════════════════════════════════
+   BOOT — auth state listener
+══════════════════════════════════════ */
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+    if (session?.user) {
+      currentUser = session.user;
+      // Check if profile exists
+      const { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      if (profile) {
+        userProfile = profile;
+        initApp();
+      } else {
+        // New user — go to onboarding
+        startOnboarding();
+      }
+    } else {
+      show('screen-auth');
+    }
+  } else if (event === 'SIGNED_OUT') {
+    show('screen-auth');
+  }
+});
+</script>
+</body>
+</html>
